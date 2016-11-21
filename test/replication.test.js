@@ -1601,10 +1601,10 @@ describe('Replication / Change APIs', function() {
       var testData = {name: 'Janie', surname: 'Doe'};
       var updates = [
         {
-        data: null,
-        change: null,
-        type: 'create'
-      }
+          data: null,
+          change: null,
+          type: 'create'
+        }
       ];
 
       async.waterfall([
@@ -1731,4 +1731,72 @@ describe('Replication / Change APIs', function() {
   function getIds(list) {
     return getPropValue(list, 'id');
   }
+});
+
+describe('Replication / Change APIs with multi tenancy', function() {
+  this.timeout(10000);
+  var dataSource, SourceModelWithTenant, TargetModelWithTenant;
+  var useSinceFilter;
+  var tid = 0; // per-test unique id used e.g. to build unique model names
+
+  beforeEach(function() {
+    tid++;
+    useSinceFilter = false;
+    var test = this;
+
+    dataSource = this.dataSource = loopback.createDataSource({
+      connector: loopback.Memory
+    });
+    SourceModelWithTenant = this.SourceModelWithTenant = PersistedModel.extend(
+      'SourceModelWithTenant-' + tid,
+      { id: { id: true, type: String, defaultFn: 'guid' } },
+      { trackChanges: true, tenantProperty: 'tenantId' });
+
+    SourceModelWithTenant.attachTo(dataSource);
+
+    TargetModelWithTenant = this.TargetModelWithTenant = PersistedModel.extend(
+      'TargetModelWithTenant-' + tid,
+      { id: { id: true, type: String, defaultFn: 'guid' } },
+      { trackChanges: true, tenantProperty: 'tenantId' });
+
+    var TargetWithTenantChange = TargetModelWithTenant.Change;
+    TargetWithTenantChange.Checkpoint = loopback.Checkpoint.extend('TargetWithTenantCheckpoint');
+    TargetWithTenantChange.Checkpoint.attachTo(dataSource);
+
+    TargetModelWithTenant.attachTo(dataSource);
+
+    test.startingCheckpoint = -1;
+  });
+
+  describe('Model.changes(since, filter, tenant, callback)', function() {
+    it('Get changes since the given checkpoint for the given tenant', function(done) {
+      var test = this;
+      this.SourceModelWithTenant.create([{name: 'foo', tenantId: '123'}, {name: 'foo', tenantId: '456'}], function(err) {
+        if (err) return done(err);
+
+        setTimeout(function() {
+          test.SourceModelWithTenant.changes(test.startingCheckpoint, {}, '123', function(err, changes) {
+            assert.equal(changes.length, 1);
+
+            done();
+          });
+        }, 1);
+      });
+    });
+
+    it('excludes changes from older checkpoints', function(done) {
+      var FUTURE_CHECKPOINT = 999;
+
+      SourceModelWithTenant.create({ name: 'foo', tenantId: '123' }, function(err) {
+        if (err) return done(err);
+        SourceModelWithTenant.changes(FUTURE_CHECKPOINT, {}, '123', function(err, changes) {
+          if (err) return done(err);
+
+          expect(changes).to.be.empty; //jshint ignore:line
+
+          done();
+        });
+      });
+    });
+  });
 });
