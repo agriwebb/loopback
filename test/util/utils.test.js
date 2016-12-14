@@ -7,44 +7,44 @@ var assert = require('assert');
 
 describe('Utils', function() {
   describe('uploadInChunks', function() {
-    it('should call process function with the chunked arrays', function() {
+    it('should call process function with the chunked arrays', function(done) {
       var largeArray = ['item1', 'item2', 'item3'];
       var calls = [];
 
-      utils.uploadInChunks(largeArray, 1, processFunction, function() {
-        assert.deepEqual(calls, [['item1'], ['item2'], ['item3']]);
-      });
-
-      function processFunction(array, cb) {
+      utils.uploadInChunks(largeArray, 1, function processFunction(array, cb) {
         calls.push(array);
         cb();
-      }
+      }, function finished(err) {
+        if (err) return done(err);
+        assert.deepEqual(calls, [['item1'], ['item2'], ['item3']]);
+        done();
+      });
     });
 
-    it('should call process function once when array less than chunk size', function() {
+    it('should call process function once when array less than chunk size', function(done) {
       var largeArray = ['item1', 'item2'];
       var calls = [];
 
-      utils.uploadInChunks(largeArray, 3, processFunction, function() {
-        assert.deepEqual(calls, [['item1', 'item2']]);
-      });
-
-      function processFunction(array, cb) {
+      utils.uploadInChunks(largeArray, 3, function processFunction(array, cb) {
         calls.push(array);
         cb();
-      }
+      }, function finished(err) {
+        if (err) return done(err);
+        assert.deepEqual(calls, [['item1', 'item2']]);
+        done();
+      });
     });
 
-    it('should concat the results from each call to the process function', function() {
+    it('should concat the results from each call to the process function', function(done) {
       var largeArray = ['item1', 'item2', 'item3', 'item4'];
 
-      utils.uploadInChunks(largeArray, 2, processFunction, function(err, results) {
-        assert.deepEqual(results, ['item1', 'item2', 'item3', 'item4']);
-      });
-
-      function processFunction(array, cb) {
+      utils.uploadInChunks(largeArray, 2, function processFunction(array, cb) {
         cb(null, array);
-      }
+      }, function finished(err, results) {
+        if (err) return done(err);
+        assert.deepEqual(results, ['item1', 'item2', 'item3', 'item4']);
+        done();
+      });
     });
   });
 
@@ -56,19 +56,6 @@ describe('Utils', function() {
       calls = [];
       chunkSize = 2;
       skip = 0;
-    });
-
-    it('should call process function with the correct filters', function() {
-      var expectedFilters = [{ skip: 0, limit: chunkSize}, { skip: chunkSize, limit: chunkSize}];
-      utils.downloadInChunks({}, chunkSize, processFunction, function() {
-        assert.deepEqual(calls, expectedFilters);
-      });
-    });
-
-    it('should concat the results from each call to the process function', function() {
-      utils.downloadInChunks({}, chunkSize, processFunction, function(err, results) {
-        assert.deepEqual(results, largeArray);
-      });
     });
 
     function processFunction(filter, cb) {
@@ -84,6 +71,23 @@ describe('Utils', function() {
       skip += chunkSize;
       cb(null, results);
     }
+
+    it('should call process function with the correct filters', function(done) {
+      var expectedFilters = [{ skip: 0, limit: chunkSize}, { skip: chunkSize, limit: chunkSize}];
+      utils.downloadInChunks({}, chunkSize, processFunction, function finished(err) {
+        if (err) return done(err);
+        assert.deepEqual(calls, expectedFilters);
+        done();
+      });
+    });
+
+    it('should concat the results from each call to the process function', function(done) {
+      utils.downloadInChunks({}, chunkSize, processFunction, function finished(err, results) {
+        if (err) return done(err);
+        assert.deepEqual(results, largeArray);
+        done();
+      });
+    });
   });
 
   describe('concatResults', function() {
