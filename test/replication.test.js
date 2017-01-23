@@ -1403,6 +1403,83 @@ describe('Replication / Change APIs', function() {
             },
             done);
         });
+
+        describe('Ensuring options can be set on the context when resolving conflicts', function() {
+          var syncPropertyExists = false;
+          var options = {
+            sync: true
+          };
+
+          beforeEach(function() {
+            AnotherModel.observe('before save', function updateTimestamp(ctx, next) {
+              if (ctx.options.sync) {
+                syncPropertyExists = true;
+              } else {
+                syncPropertyExists = false;
+              }
+              next();
+            });
+          });
+
+          it('handles UPDATE conflict resolved manually ensuring options is set on context', function(done) {
+            testUpdateConflictIsResolved(
+              function resolveManually(conflict, callback) {
+                console.log('resolveManually');
+                conflict.resolveManually({ name: 'manual' }, options, callback);
+                console.log('resolveManually after');
+              },
+              function(err, result) {
+                if (err) return done(err);
+
+                expect(syncPropertyExists).to.eql(true);
+
+                done();
+              });
+          });
+
+          it('handles UPDATE conflict resolved using "theirs" ensuring options is set on context', function(done) {
+            testUpdateConflictIsResolved(
+              function resolveUsingTheirs(conflict, cb) {
+                // We sync ClientA->Server first
+                expect(conflict.SourceModel.modelName)
+                  .to.equal(ClientB.modelName);
+                conflict.resolveUsingTarget(options, cb);
+              },
+              function(err, result) {
+                if (err) return done(err);
+
+                expect(syncPropertyExists).to.eql(true);
+
+                done();
+              });
+          });
+
+          it('handles DELETE conflict resolved using "theirs" ensuring options is set on context', function(done) {
+            testDeleteConflictIsResolved(
+              function resolveUsingTheirs(conflict, cb) {
+                // We sync ClientA->Server first
+                expect(conflict.SourceModel.modelName)
+                  .to.equal(ClientB.modelName);
+                conflict.resolveUsingTarget(options, cb);
+              },
+              function(err, result) {
+                if (err) return done(err);
+
+                // No save should occur during delete so do not expect a change
+                expect(syncPropertyExists).to.eql(false);
+
+                done();
+              });
+          });
+
+          it('handles DELETE conflict resolved manually even when options supplied', function(done) {
+            testDeleteConflictIsResolved(
+              function resolveManually(conflict, cb) {
+                conflict.resolveManually({ name: 'manual' }, cb);
+              },
+              done);
+          });
+        });
       });
 
       function testUpdateConflictIsResolved(resolver, cb) {
