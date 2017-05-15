@@ -192,10 +192,16 @@ module.exports = function(Change) {
     model.findById(id, function(err, inst) {
       if (err) return cb(err);
 
+      var currentTenant = change.tenant;
       change.tenant = getTenant(model, inst);
 
       change.currentRevision(inst, function(err, rev) {
         if (err) return cb(err);
+
+        // If the tenant is different then ensure that change is updated
+        if (change.tenant !== currentTenant) {
+          currentRev = -1;
+        }
 
         // avoid setting rev and prev to the same value
         if (currentRev === rev) {
