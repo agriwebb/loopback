@@ -154,38 +154,22 @@ module.exports = function(Change) {
       var model = Change.registry.findModel(modelName);
       var tenant = getTenant(model, instance);
 
-      var ch = new Change({
-        id: id,
-        modelName: modelName,
-        modelId: instance.id,
-        rev: rev,
-        prev: null,
-        tenant: tenant,
-        checkpoint: Number.MAX_SAFE_INTEGER
-      });
+      if (ctx.options && ctx.options.currentCheckpoint) {
+        console.warn('ctx.options.currentCheckpoint', ctx.options.currentCheckpoint);
 
-      ch.debug('creating new change record');
+        createCheckpoint(model, instance, id, rev, tenant, ctx.options.currentCheckpoint, next);
+      } else {
+        // Get the checkpoint
+        Change.getCheckpointModel().current(
+          function(err, checkpoint) {
+            if (ctx.options) {
+              ctx.options.currentCheckpoint = checkpoint;
+            }
 
-      Change.create(ch, next);
-
-      // Get the checkpoint
-      // Change.getCheckpointModel().current(
-      //   function(err, checkpoint) {
-      //     var ch = new Change({
-      //       id: id,
-      //       modelName: modelName,
-      //       modelId: instance.id,
-      //       rev: rev,
-      //       prev: null,
-      //       tenant: tenant,
-      //       checkpoint: Number.MAX_SAFE_INTEGER,
-      //     });
-      //
-      //     ch.debug('creating new change record');
-      //
-      //     Change.create(ch, next);
-      //   }
-      // );
+            createCheckpoint(model, instance, id, rev, tenant, ctx.options.currentCheckpoint, next);
+          }
+        );
+      }
     } else {
       Change.findOrCreateChange(modelName, instance.id, function(err, change) {
         if (err) {
@@ -193,6 +177,22 @@ module.exports = function(Change) {
         }
         change.rectify(ctx, next);
       });
+    }
+
+    function createCheckpoint(modelName, instance, id, rev, tenant, checkpoint, next) {
+      var ch = new Change({
+        id: id,
+        modelName: modelName,
+        modelId: instance.id,
+        rev: rev,
+        prev: null,
+        tenant: tenant,
+        checkpoint: checkpoint
+      });
+
+      ch.debug('creating new change record');
+
+      Change.create(ch, next);
     }
 
     function next(err) {
