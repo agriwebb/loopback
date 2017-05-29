@@ -124,6 +124,15 @@ module.exports = function(Change) {
     return callback.promise;
   };
 
+  Change.getCurrentCheckpoint = function(ctx, callback) {
+    var Change = this;
+    Change.getCheckpointModel().current(
+      function(err, checkpoint) {
+        callback(err, checkpoint);
+      }
+    );
+  };
+
   /**
    * Track the recent change of the given instance.
    *
@@ -154,22 +163,28 @@ module.exports = function(Change) {
       var model = Change.registry.findModel(modelName);
       var tenant = getTenant(model, instance);
 
-      if (ctx.options && ctx.options.currentCheckpoint) {
-        console.warn('ctx.options.currentCheckpoint', ctx.options.currentCheckpoint);
+      var ch = new Change({
+        id: id,
+        modelName: modelName,
+        modelId: instance.id,
+        rev: rev,
+        prev: null,
+        tenant: tenant
+      });
 
-        createCheckpoint(model, instance, id, rev, tenant, ctx.options.currentCheckpoint, next);
-      } else {
-        // Get the checkpoint
-        Change.getCheckpointModel().current(
-          function(err, checkpoint) {
-            if (ctx.options) {
-              ctx.options.currentCheckpoint = checkpoint;
-            }
-
-            createCheckpoint(model, instance, id, rev, tenant, ctx.options.currentCheckpoint, next);
+      Change.getCurrentCheckpoint(
+        ctx,
+        function(err, checkpoint) {
+          if (err) {
+            return next(err);
           }
-        );
-      }
+          ch.checkpoint = checkpoint;
+
+          ch.debug('creating new change record');
+
+          Change.create(ch, next);
+        }
+      );
     } else {
       Change.findOrCreateChange(modelName, instance.id, function(err, change) {
         if (err) {
@@ -177,22 +192,6 @@ module.exports = function(Change) {
         }
         change.rectify(ctx, next);
       });
-    }
-
-    function createCheckpoint(modelName, instance, id, rev, tenant, checkpoint, next) {
-      var ch = new Change({
-        id: id,
-        modelName: modelName,
-        modelId: instance.id,
-        rev: rev,
-        prev: null,
-        tenant: tenant,
-        checkpoint: checkpoint
-      });
-
-      ch.debug('creating new change record');
-
-      Change.create(ch, next);
     }
 
     function next(err) {
@@ -204,23 +203,23 @@ module.exports = function(Change) {
       callback();
     }
 
-    function getTenant(model, inst) {
-      var tenant = null;
-      var tenantProperty;
-
-      if (model && model.settings && model.settings.tenantProperty) {
-        tenantProperty = model.settings.tenantProperty;
-      }
-
-      if (tenantProperty && inst && inst[tenantProperty]) {
-        tenant = inst[tenantProperty];
-      }
-
-      return tenant;
-    }
-
     return callback.promise;
   };
+
+  function getTenant(model, inst) {
+    var tenant = null;
+    var tenantProperty;
+
+    if (model && model.settings && model.settings.tenantProperty) {
+      tenantProperty = model.settings.tenantProperty;
+    }
+
+    if (tenantProperty && inst && inst[tenantProperty]) {
+      tenant = inst[tenantProperty];
+    }
+
+    return tenant;
+  }
 
   /**
    * Get an identifier for a given model.
@@ -337,21 +336,6 @@ module.exports = function(Change) {
           }
         );
       });
-    }
-
-    function getTenant(model, inst) {
-      var tenant = null;
-      var tenantProperty;
-
-      if (model && model.settings && model.settings.tenantProperty) {
-        tenantProperty = model.settings.tenantProperty;
-      }
-
-      if (tenantProperty && inst && inst[tenantProperty]) {
-        tenant = inst[tenantProperty];
-      }
-
-      return tenant;
     }
 
     function doRectify(checkpoint, rev) {
