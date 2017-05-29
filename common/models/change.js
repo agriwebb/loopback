@@ -124,6 +124,103 @@ module.exports = function(Change) {
     return callback.promise;
   };
 
+  Change.getCurrentCheckpoint = function(ctx, callback) {
+    var Change = this;
+    Change.getCheckpointModel().current(
+      function(err, checkpoint) {
+        callback(err, checkpoint);
+      }
+    );
+  };
+
+  /**
+   * Track the recent change of the given instance.
+   *
+   * @param  {String}   modelName
+   * @param  {Object}    instance
+   * @param  {Object}    ctx
+   * @callback {Function} callback
+   * @param {Error} err
+   * @param {Array} changes Changes that were tracked
+   */
+  Change.rectifyModelChange = function(modelName, instance, ctx, callback) {
+    var Change = this;
+    var errors = [];
+
+    callback = callback || utils.createPromiseCallback();
+
+    if (ctx) {
+      debug("rectifyModelChange new change", ctx.newInstance);
+    }
+
+    if (ctx.isNewInstance) {
+      var id = this.idForModel(modelName, instance.id);
+
+      // Get revision for new item
+      var rev = Change.revisionForInst(instance);
+
+      // Get tenant
+      var model = Change.registry.findModel(modelName);
+      var tenant = getTenant(model, instance);
+
+      var ch = new Change({
+        id: id,
+        modelName: modelName,
+        modelId: instance.id,
+        rev: rev,
+        prev: null,
+        tenant: tenant
+      });
+
+      Change.getCurrentCheckpoint(
+        ctx,
+        function(err, checkpoint) {
+          if (err) {
+            return next(err);
+          }
+          ch.checkpoint = checkpoint;
+
+          ch.debug('creating new change record');
+
+          Change.create(ch, next);
+        }
+      );
+    } else {
+      Change.findOrCreateChange(modelName, instance.id, function(err, change) {
+        if (err) {
+          return next(err);
+        }
+        change.rectify(ctx, next);
+      });
+    }
+
+    function next(err) {
+      if (err) {
+        err.modelName = modelName;
+        err.modelId = id;
+        errors.push(err);
+      }
+      callback();
+    }
+
+    return callback.promise;
+  };
+
+  function getTenant(model, inst) {
+    var tenant = null;
+    var tenantProperty;
+
+    if (model && model.settings && model.settings.tenantProperty) {
+      tenantProperty = model.settings.tenantProperty;
+    }
+
+    if (tenantProperty && inst && inst[tenantProperty]) {
+      tenant = inst[tenantProperty];
+    }
+
+    return tenant;
+  }
+
   /**
    * Get an identifier for a given model.
    *
@@ -154,7 +251,10 @@ module.exports = function(Change) {
     var Change = this;
 
     this.findById(id, function(err, change) {
-      if (err) return callback(err);
+      if (err) {
+        return callback(err);
+      }
+
       if (change) {
         callback(null, change);
       } else {
@@ -164,7 +264,7 @@ module.exports = function(Change) {
           modelId: modelId
         });
         ch.debug('creating change');
-        Change.updateOrCreate(ch, callback);
+        Change.create(ch, callback);
       }
     });
     return callback.promise;
@@ -177,26 +277,43 @@ module.exports = function(Change) {
    * @param {Error} err
    * @param {Change} change
    */
-
-  Change.prototype.rectify = function(cb) {
+  Change.prototype.rectify = function(ctx, cb) {
     var change = this;
     var currentRev = this.rev;
 
     change.debug('rectify change');
+    // if only one argument was provided, then set that as the callback
+    if (typeof ctx === 'function') {
+      cb = ctx;
+      ctx = null;
+    }
 
     cb = cb || utils.createPromiseCallback();
 
     var model = this.getModelCtor();
     var id = this.getModelId();
 
-    model.findById(id, function(err, inst) {
-      if (err) return cb(err);
+    if (ctx && ctx.instance) {
+      prepareInst(ctx.instance);
+    } else {
+      model.findById(id, function(err, inst) {
+        if (err) {
+          return cb(err);
+        }
+        prepareInst(inst);
+      });
+    }
 
+    return cb.promise;
+
+    function prepareInst(inst) {
       var currentTenant = change.tenant;
       change.tenant = getTenant(model, inst);
 
       change.currentRevision(inst, function(err, rev) {
-        if (err) return cb(err);
+        if (err) {
+          return cb(err);
+        }
 
         // If the tenant is different then ensure that change is updated
         if (change.tenant !== currentTenant) {
@@ -219,22 +336,6 @@ module.exports = function(Change) {
           }
         );
       });
-    });
-    return cb.promise;
-
-    function getTenant(model, inst) {
-      var tenant = null;
-      var tenantProperty;
-
-      if (model && model.settings && model.settings.tenantProperty) {
-        tenantProperty = model.settings.tenantProperty;
-      }
-
-      if (tenantProperty && inst && inst[tenantProperty]) {
-        tenant = inst[tenantProperty];
-      }
-
-      return tenant;
     }
 
     function doRectify(checkpoint, rev) {
@@ -267,7 +368,7 @@ module.exports = function(Change) {
         }
       }
 
-      if (change.checkpoint != checkpoint) {
+      if (change.checkpoint !== checkpoint) {
         debug('update checkpoint to', checkpoint);
         change.checkpoint = checkpoint;
       }
