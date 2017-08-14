@@ -1,6 +1,9 @@
 {
   "name": "loopback",
-  "version": "2.36.1",
+  "version": "2.38.3",
+  "publishConfig": {
+    "tag": "lts"
+  },
   "description": "LoopBack: Open Source Framework for Node.js",
   "homepage": "http://loopback.io",
   "keywords": [
@@ -29,7 +32,8 @@
     "mBaaS"
   ],
   "scripts": {
-    "test": "grunt mocha-and-karma"
+    "coverage": "nyc report --reporter=text-lcov | coveralls",
+    "test": "nyc grunt mocha-and-karma"
   },
   "dependencies": {
     "async": "^2.0.1",
@@ -64,7 +68,7 @@
     "browserify": "^13.1.0",
     "chai": "^3.5.0",
     "es5-shim": "^4.1.0",
-    "eslint-config-loopback": "^1.0.0",
+    "coveralls": "^2.11.15",
     "express-session": "^1.14.0",
     "grunt": "^1.0.1",
     "grunt-browserify": "^5.0.0",
@@ -76,7 +80,7 @@
     "grunt-karma": "^2.0.0",
     "grunt-mocha-test": "^0.12.7",
     "karma": "^1.1.2",
-    "karma-browserify": "^4.4.2",
+    "karma-browserify": "^5.0.5",
     "karma-chrome-launcher": "^1.0.1",
     "karma-firefox-launcher": "^1.0.0",
     "karma-html2js-preprocessor": "^1.0.0",
@@ -88,12 +92,13 @@
     "loopback-datasource-juggler": "^2.19.1",
     "loopback-testing": "^1.4.0",
     "mocha": "^3.0.0",
+    "nyc": "^10.1.2",
     "phantomjs-prebuilt": "^2.1.7",
     "sinon": "^1.13.0",
     "sinon-chai": "^2.8.0",
-    "strong-error-handler": "^1.0.1",
     "strong-task-emitter": "^0.0.6",
-    "supertest": "^2.0.0"
+    "supertest": "^2.0.0",
+    "supertest-as-promised": "^4.0.2"
   },
   "repository": {
     "type": "git",
@@ -112,6 +117,12 @@
     "ci": {
       "debug": "*,-mocha:*,-eslint:*"
     }
+  },
+  "ci": {
+    "downstreamIgnoreList": [
+      "dashboard-controller",
+      "gateway-director-management-interface"
+    ]
   },
   "license": "MIT"
 }

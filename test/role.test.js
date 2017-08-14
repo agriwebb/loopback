@@ -23,6 +23,7 @@ describe('role model', function() {
     // Use local app registry to ensure models are isolated to avoid
     // pollutions from other tests
     app = loopback({ localRegistry: true, loadBuiltinModels: true });
+    app.set('logoutSessionsOnSensitiveChanges', true);
     app.dataSource('db', { connector: 'memory' });
 
     ACL = app.registry.getModel('ACL');
@@ -44,9 +45,6 @@ describe('role model', function() {
     ACL.roleMappingModel = RoleMapping;
     ACL.userModel = User;
     ACL.applicationModel = Application;
-    Role.roleMappingModel = RoleMapping;
-    Role.userModel = User;
-    Role.applicationModel = Application;
   });
 
   it('should define role/role relations', function(done) {
@@ -245,6 +243,20 @@ describe('role model', function() {
                     Role.AUTHENTICATED,
                     Role.EVERYONE,
                     role.id,
+                  ]);
+                  next();
+                });
+            },
+            function(next) {
+              Role.getRoles(
+                { principalType: RoleMapping.USER, principalId: user.id },
+                { returnOnlyRoleNames: true },
+                function(err, roles) {
+                  if (err) return next(err);
+                  expect(roles).to.eql([
+                    Role.AUTHENTICATED,
+                    Role.EVERYONE,
+                    role.name,
                   ]);
                   next();
                 });
@@ -721,6 +733,7 @@ describe('role model', function() {
   describe('isOwner', function() {
     it('supports app-local model registry', function(done) {
       var app = loopback({ localRegistry: true, loadBuiltinModels: true });
+      app.set('logoutSessionsOnSensitiveChanges', true);
       app.dataSource('db', { connector: 'memory' });
       // attach all auth-related models to 'db' datasource
       app.enableAuth({ dataSource: 'db' });

@@ -190,6 +190,26 @@ describe('loopback.token(options)', function() {
         });
     });
 
+  it('should generate a 401 on a current user literal route without an authToken',
+    function(done) {
+      var app = createTestApp(null, done);
+      request(app)
+        .get('/users/me')
+        .set('authorization', null)
+        .expect(401)
+        .end(done);
+    });
+
+  it('should generate a 401 on a current user literal route with invalid authToken',
+    function(done) {
+      var app = createTestApp(this.token, done);
+      request(app)
+        .get('/users/me')
+        .set('Authorization', 'invald-token-id')
+        .expect(401)
+        .end(done);
+    });
+
   it('should skip when req.token is already present', function(done) {
     var tokenStub = { id: 'stub id' };
     app.use(function(req, res, next) {
@@ -590,6 +610,7 @@ function createTestApp(testToken, settings, done) {
   }, settings.token);
 
   var app = loopback();
+  app.set('logoutSessionsOnSensitiveChanges', true);
 
   app.use(cookieParser('secret'));
   app.use(loopback.token(tokenSettings));
@@ -652,6 +673,7 @@ function createTestApp(testToken, settings, done) {
 
 function givenLocalTokenModel() {
   var app = loopback({ localRegistry: true, loadBuiltinModels: true });
+  app.set('logoutSessionsOnSensitiveChanges', true);
   app.dataSource('db', { connector: 'memory' });
 
   var User = app.registry.getModel('User');

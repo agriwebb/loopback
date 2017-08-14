@@ -13,6 +13,7 @@ var isEmail = require('isemail');
 var loopback = require('../../lib/loopback');
 var utils = require('../../lib/utils');
 var path = require('path');
+var qs = require('querystring');
 var SALT_WORK_FACTOR = 10;
 var crypto = require('crypto');
 var MAX_PASSWORD_LENGTH = 72;
@@ -293,13 +294,23 @@ module.exports = function(User) {
 
   User.logout = function(tokenId, fn) {
     fn = fn || utils.createPromiseCallback();
-    this.relations.accessTokens.modelTo.findById(tokenId, function(err, accessToken) {
+
+    if (!tokenId) {
+      var err = new Error(g.f('{{accessToken}} is required to logout'));
+      err.status = 401;
+      process.nextTick(function() { fn(err); });
+      return fn.promise;
+    }
+
+    this.relations.accessTokens.modelTo.destroyById(tokenId, function(err, info) {
       if (err) {
         fn(err);
-      } else if (accessToken) {
-        accessToken.destroy(fn);
+      } else if ('count' in info && info.count === 0) {
+        err = new Error(g.f('Could not find {{accessToken}}'));
+        err.status = 401;
+        fn(err);
       } else {
-        fn(new Error(g.f('could not find {{accessToken}}')));
+        fn();
       }
     });
     return fn.promise;
@@ -384,6 +395,7 @@ module.exports = function(User) {
     var user = this;
     var userModel = this.constructor;
     var registry = userModel.registry;
+    var pkName = userModel.definition.idName() || 'id';
     assert(typeof options === 'object', 'options required when calling user.verify()');
     assert(options.type, 'You must supply a verification type (options.type)');
     assert(options.type === 'email', 'Unsupported verification type');
@@ -417,10 +429,10 @@ module.exports = function(User) {
       options.host +
       displayPort +
       urlPath +
-      '?uid=' +
-      options.user.id +
-      '&redirect=' +
-      options.redirect;
+      '?' + qs.stringify({
+        uid: '' + options.user[pkName],
+        redirect: options.redirect,
+      });
 
     options.templateFn = options.templateFn || createVerificationEmailBody;
 
@@ -469,11 +481,15 @@ module.exports = function(User) {
       function setHtmlContentAndSend(html) {
         options.html = html;
 
+        // Remove options.template to prevent rejection by certain
+        // nodemailer transport plugins.
+        delete options.template;
+
         Email.send(options, function(err, email) {
           if (err) {
             fn(err);
           } else {
-            fn(null, { email: email, token: user.verificationToken, uid: user.id });
+            fn(null, {email: email, token: user.verificationToken, uid: user[pkName]});
           }
         });
       }
@@ -546,11 +562,12 @@ module.exports = function(User) {
   };
 
   /**
-   * Create a short lived acess token for temporary login. Allows users
+   * Create a short lived access token for temporary login. Allows users
    * to change passwords if forgotten.
    *
    * @options {Object} options
-   * @prop {String} email The user's email address
+   * @property {String} email The user's email address
+   * @property {String} realm The user's realm (optional)
    * @callback {Function} callback
    * @param {Error} err
    */
@@ -575,7 +592,13 @@ module.exports = function(User) {
     } catch (err) {
       return cb(err);
     }
-    UserModel.findOne({ where: { email: options.email }}, function(err, user) {
+    var where = {
+      email: options.email
+    };
+    if (options.realm) {
+      where.realm = options.realm;
+    }
+    UserModel.findOne({ where: where }, function(err, user) {
       if (err) {
         return cb(err);
       }
@@ -594,7 +617,7 @@ module.exports = function(User) {
         return cb(err);
       }
 
-      user.accessTokens.create({ ttl: ttl }, function(err, accessToken) {
+      user.createAccessToken(ttl, function(err, accessToken) {
         if (err) {
           return cb(err);
         }
@@ -602,7 +625,8 @@ module.exports = function(User) {
         UserModel.emit('resetPasswordRequest', {
           email: options.email,
           accessToken: accessToken,
-          user: user
+          user: user,
+          options: options,
         });
       });
     });
@@ -634,6 +658,31 @@ module.exports = function(User) {
     err.statusCode = 422;
     throw err;
   };
+
+  User._invalidateAccessTokensOfUsers = function(userIds, options, cb) {
+    if (typeof options === 'function' && cb === undefined) {
+      cb = options;
+      options = {};
+    }
+
+    if (!Array.isArray(userIds) || !userIds.length)
+      return process.nextTick(cb);
+
+    var accessTokenRelation = this.relations.accessTokens;
+    if (!accessTokenRelation)
+      return process.nextTick(cb);
+
+    var AccessToken = accessTokenRelation.modelTo;
+
+    var query = {userId: {inq: userIds}};
+    var tokenPK = AccessToken.definition.idName() || 'id';
+    if (options.accessToken && tokenPK in options.accessToken) {
+      query[tokenPK] = {neq: options.accessToken[tokenPK]};
+    }
+
+    AccessToken.deleteAll(query, options, cb);
+  };
+
   /*!
    * Setup an extended user model.
    */
@@ -668,15 +717,6 @@ module.exports = function(User) {
       }
     };
 
-    // Access token to normalize email credentials
-    UserModel.observe('access', function normalizeEmailCase(ctx, next) {
-      if (!ctx.Model.settings.caseSensitiveEmail && ctx.query.where &&
-          ctx.query.where.email && typeof(ctx.query.where.email) === 'string') {
-        ctx.query.where.email = ctx.query.where.email.toLowerCase();
-      }
-      next();
-    });
-
     // Make sure emailVerified is not set by creation
     UserModel.beforeRemote('create', function(ctx, user, next) {
       var body = ctx.req.body;
@@ -684,50 +724,6 @@ module.exports = function(User) {
         body.emailVerified = false;
       }
       next();
-    });
-
-    // Delete old sessions once email is updated
-    UserModel.observe('before save', function beforeEmailUpdate(ctx, next) {
-      var emailChanged;
-      if (ctx.isNewInstance) return next();
-      if (!ctx.where && !ctx.instance) return next();
-      var where = ctx.where || { id: ctx.instance.id };
-      ctx.Model.find({ where: where }, function(err, userInstances) {
-        if (err) return next(err);
-        ctx.hookState.originalUserData = userInstances.map(function(u) {
-          return { id: u.id, email: u.email };
-        });
-        if (ctx.instance) {
-          emailChanged = ctx.instance.email !== ctx.hookState.originalUserData[0].email;
-          if (emailChanged && ctx.Model.settings.emailVerificationRequired) {
-            ctx.instance.emailVerified = false;
-          }
-        } else {
-          emailChanged = ctx.hookState.originalUserData.some(function(data) {
-            return data.email != ctx.data.email;
-          });
-          if (emailChanged && ctx.Model.settings.emailVerificationRequired) {
-            ctx.data.emailVerified = false;
-          }
-        }
-        next();
-      });
-    });
-
-    UserModel.observe('after save', function afterEmailUpdate(ctx, next) {
-      if (!ctx.Model.relations.accessTokens) return next();
-      var AccessToken = ctx.Model.relations.accessTokens.modelTo;
-      if (!ctx.instance && !ctx.data) return next();
-      var newEmail = (ctx.instance || ctx.data).email;
-      if (!newEmail) return next();
-      if (!ctx.hookState.originalUserData) return next();
-      var idsToExpire = ctx.hookState.originalUserData.filter(function(u) {
-        return u.email !== newEmail;
-      }).map(function(u) {
-        return u.id;
-      });
-      if (!idsToExpire.length) return next();
-      AccessToken.deleteAll({ userId: { inq: idsToExpire }}, next);
     });
 
     UserModel.remoteMethod(
@@ -758,10 +754,10 @@ module.exports = function(User) {
       {
         description: 'Logout a user with access token.',
         accepts: [
-          {arg: 'access_token', type: 'string', required: true, http: function(ctx) {
+          {arg: 'access_token', type: 'string', http: function(ctx) {
               var req = ctx && ctx.req;
               var accessToken = req && req.accessToken;
-              var tokenID = accessToken && accessToken.id;
+              var tokenID = accessToken ? accessToken.id : undefined;
               return tokenID;
             }, description: 'Do not supply this argument, it is automatically extracted ' +
             'from request headers.',
@@ -823,6 +819,34 @@ module.exports = function(User) {
       UserModel.validatesUniquenessOf('username', {message: 'User already exists'});
     }
 
+    UserModel.once('attached', function() {
+      if (UserModel.app.get('logoutSessionsOnSensitiveChanges') !== undefined)
+        return;
+
+      g.warn([
+        '',
+        'The user model %j is attached to an application that does not specify',
+        'whether other sessions should be invalidated when a password or',
+        'an email has changed. Session invalidation is important for security',
+        'reasons as it allows users to recover from various account breach',
+        'situations.',
+        '',
+        'We recommend turning this feature on by setting',
+        '"{{logoutSessionsOnSensitiveChanges}}" to {{true}} in',
+        '{{server/config.json}} (unless you have implemented your own solution',
+        'for token invalidation).',
+        '',
+        'We also recommend enabling "{{injectOptionsFromRemoteContext}}" in',
+        '%s\'s settings (typically via common/models/*.json file).',
+        'This setting is required for the invalidation algorithm to keep ',
+        'the current session valid.',
+        '',
+        'Learn more in our documentation at',
+        'https://loopback.io/doc/en/lb2/AccessToken-invalidation.html',
+        '',
+      ].join('\n'), UserModel.modelName, UserModel.modelName);
+    });
+
     return UserModel;
   };
 
@@ -832,6 +856,86 @@ module.exports = function(User) {
 
   User.setup();
 
+  // --- OPERATION HOOKS ---
+  //
+  // Important: Operation hooks are inherited by subclassed models,
+  // therefore they must be registered outside of setup() function
+
+  // Access token to normalize email credentials
+  User.observe('access', function normalizeEmailCase(ctx, next) {
+    if (!ctx.Model.settings.caseSensitiveEmail && ctx.query.where &&
+        ctx.query.where.email && typeof(ctx.query.where.email) === 'string') {
+      ctx.query.where.email = ctx.query.where.email.toLowerCase();
+    }
+    next();
+  });
+
+  User.observe('before save', function prepareForTokenInvalidation(ctx, next) {
+    var invalidationEnabled = ctx.Model.app &&
+      ctx.Model.app.get('logoutSessionsOnSensitiveChanges');
+    if (!invalidationEnabled) return next();
+
+    if (ctx.isNewInstance) return next();
+    if (!ctx.where && !ctx.instance) return next();
+
+    var pkName = ctx.Model.definition.idName() || 'id';
+
+    var where = ctx.where;
+    if (!where) {
+      where = {};
+      where[pkName] = ctx.instance[pkName];
+    }
+
+    ctx.Model.find({where: where}, ctx.options, function(err, userInstances) {
+      if (err) return next(err);
+      ctx.hookState.originalUserData = userInstances.map(function(u) {
+        var user = {};
+        user[pkName] = u[pkName];
+        user.email = u.email;
+        user.password = u.password;
+        return user;
+      });
+      var emailChanged;
+      if (ctx.instance) {
+        emailChanged = ctx.instance.email !== ctx.hookState.originalUserData[0].email;
+        if (emailChanged && ctx.Model.settings.emailVerificationRequired) {
+          ctx.instance.emailVerified = false;
+        }
+      } else if (ctx.data.email) {
+        emailChanged = ctx.hookState.originalUserData.some(function(data) {
+          return data.email != ctx.data.email;
+        });
+        if (emailChanged && ctx.Model.settings.emailVerificationRequired) {
+          ctx.data.emailVerified = false;
+        }
+      }
+
+      next();
+    });
+  });
+
+  User.observe('after save', function invalidateOtherTokens(ctx, next) {
+    var invalidationEnabled = ctx.Model.app &&
+      ctx.Model.app.get('logoutSessionsOnSensitiveChanges');
+    if (!invalidationEnabled) return next();
+
+    if (!ctx.instance && !ctx.data) return next();
+    if (!ctx.hookState.originalUserData) return next();
+
+    var pkName = ctx.Model.definition.idName() || 'id';
+    var newEmail = (ctx.instance || ctx.data).email;
+    var newPassword = (ctx.instance || ctx.data).password;
+
+    if (!newEmail && !newPassword) return next();
+
+    var userIdsToExpire = ctx.hookState.originalUserData.filter(function(u) {
+      return (newEmail && u.email !== newEmail) ||
+        (newPassword && u.password !== newPassword);
+    }).map(function(u) {
+      return u[pkName];
+    });
+    ctx.Model._invalidateAccessTokensOfUsers(userIdsToExpire, ctx.options, next);
+  });
 };
 
 function emailValidator(err, done) {

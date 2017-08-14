@@ -1,3 +1,117 @@
+2017-04-17, Version 2.38.3
+==========================
+
+ * use lower version of karma-browserify (Diana Lau)
+
+ * update karma-browserify to 5.x (Diana Lau)
+
+ * update translation msg (Diana Lau)
+
+ * Fix user-literal rewrite for anonymous requests (Aaron Buchanan)
+
+ * Forward options in prepareForTokenInvalidation (Miroslav Bajtoš)
+
+
+2017-03-17, Version 2.38.2
+==========================
+
+ * Fix file patch (Raymond Feng)
+
+ * Add nyc coverage, report data to coveralls.io (Miroslav Bajtoš)
+
+
+2017-03-13, Version 2.38.1
+==========================
+
+ * Fix User.verify to convert uid to string (phairow)
+
+ * Configure Travis CI to cache phantomjs binaries (Miroslav Bajtoš)
+
+ * Improve "filter" arg description (Raymond Camden)
+
+ * Fix creation of verification links (Miroslav Bajtoš)
+
+ * Include link to docs in logoutSessions warning (Miroslav Bajtoš)
+
+ * Fix detection of logoutSessionsOnSensitiveChanges (Miroslav Bajtoš)
+
+ * Preserve sessions on User.save() making no changes (Miroslav Bajtoš)
+
+ * Remove unused dependencies (Miroslav Bajtoš)
+
+ * Fix logout to handle no or missing accessToken (Ritchie Martori)
+
+ * Use English when running Mocha tests (Miroslav Bajtoš)
+
+ * Role model: resolves related models by name (Benjamin Kroeger)
+
+ * Fix User methods to use correct Primary Key (Aris Kemper)
+
+
+2017-01-20, Version 2.38.0
+==========================
+
+ * Add app setting logoutSessionsOnSensitiveChanges (Miroslav Bajtoš)
+
+ * Fix User.resetPassword to call createAccessToken() (João Ribeiro)
+
+
+2017-01-16, Version 2.37.1
+==========================
+
+ * Preserve current session when invalidating tokens (Miroslav Bajtoš)
+
+ * Clean up access-token-invalidation tests (Miroslav Bajtoš)
+
+
+2017-01-09, Version 2.37.0
+==========================
+
+ * Emit resetPasswordRequest event with options (Sergey Reus)
+
+ * Fix false emailVerified on user model update (박대선)
+
+ * Add new flag injectOptionsFromRemoteContext (Miroslav Bajtoš)
+
+ * Contextify DAO and relation methods (Miroslav Bajtoš)
+
+ * Implement new http arg mapping optionsFromRequest (Miroslav Bajtoš)
+
+ * Fix package.json CI downstreamIgnoreList nesting (David Cheung)
+
+
+2016-12-21, Version 2.36.2
+==========================
+
+ * Add option disabling periodic change rectification (kobaska)
+
+ * Release LTS LB2 (Simon Ho)
+
+ * Invalidate AccessTokens on password change (Miroslav Bajtoš)
+
+ * Fix registration of operation hooks in User model (Miroslav Bajtoš)
+
+ * Remove "options.template" from Email payload (Miroslav Bajtoš)
+
+ * Opt-out downstream builds that are unstable (David Cheung)
+
+ * Allow password reset request for users in realms (Bram Borggreve)
+
+ * Add "returnOnlyRoleNames" option to Role.getRoles (Eric)
+
+ * Fix context within listByPrincipalType role method (codyolsen)
+
+ * Add templateFn option to User#verify() (Adrien Kiren)
+
+ * Add options to bulkUpdate (Kogulan Baskaran)
+
+ * Require verification after email change (Loay)
+
+ * adding check of string for case insensitive emails (Dhaval Trivedi)
+
+ * Fix PR template to not link all PRs to #49 (#2887) (Miroslav Bajtoš)
+
+
 2016-10-24, Version 2.36.0
 ==========================
 
