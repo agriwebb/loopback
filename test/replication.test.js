@@ -132,7 +132,7 @@ describe('Replication / Change APIs', function() {
     }
   });
 
-  describe('optimization check rectifyChange Vs rectifyAllChanges', function() {
+  describe('optimization check rectifyChanges Vs rectifyAllChanges', function() {
     beforeEach(function initialData(done) {
       var data = [{name: 'John', surname: 'Doe'}, {name: 'Jane', surname: 'Roe'}];
       async.waterfall([
@@ -216,7 +216,7 @@ describe('Replication / Change APIs', function() {
         },
         function(data, callback) {
           SourceModel.replicate(TargetModel, callback);
-          // replicate should call `rectifyOnDelete` and then `rectifyChange` not `rectifyAllChanges` through `after delete` operation
+          // replicate should call `rectifyOnDelete` and then `rectifyChanges` not `rectifyAllChanges` through `after delete` operation
         }
       ], function(err, results) {
         if (err) return done(err);
@@ -249,9 +249,9 @@ describe('Replication / Change APIs', function() {
       var sourceCalls = mockSourceModelRectify();
 
       // overwrite rectifyOnSave
-      SourceModel.rectifyOnDelete = function(ctx, next) {
-        var id = 'abc';
-        ctx.Model.rectifyChange(id, next);
+      SourceModel.getIdsFromWhereByModelId = function(where, cb) {
+        var ids = where.name === 'Jane' ? ['abc', 'def'] : null;
+        cb(null, ids);
       };
       async.waterfall([
         function(callback) {
@@ -263,12 +263,12 @@ describe('Replication / Change APIs', function() {
         }
       ], function(err, result) {
         if (err) return done(err);
-        expect(sourceCalls).to.eql(['rectifyChange']);
+        expect(sourceCalls).to.eql(['rectifyChanges']);
         done();
       });
     });
 
-    it('rectifyOnSave for Update should call rectifyChange instead of rectifyAllChanges', function(done) {
+    it('rectifyOnSave for Update should call rectifyChanges instead of rectifyAllChanges', function(done) {
       var calls = mockTargetModelRectify();
       var newData = {'name': 'Janie'};
       async.waterfall([
@@ -312,9 +312,9 @@ describe('Replication / Change APIs', function() {
       var newData = {'name': 'Janie'};
 
       // overwrite rectifyOnSave
-      SourceModel.rectifyOnSave = function(ctx, next) {
-        var id = 'abc';
-        ctx.Model.rectifyChange(id, next);
+      SourceModel.getIdsFromWhereByModelId = function(where, cb) {
+        var ids = where.name === 'Jane' ? ['abc', 'def'] : null;
+        cb(null, ids);
       };
       async.waterfall([
         function(callback) {
@@ -326,12 +326,12 @@ describe('Replication / Change APIs', function() {
         }
       ], function(err, result) {
         if (err) return done(err);
-        expect(sourceCalls).to.eql(['rectifyChange']);
+        expect(sourceCalls).to.eql(['rectifyChanges']);
         done();
       });
     });
 
-    it('rectifyOnSave for Create should call rectifyChange instead of rectifyAllChanges', function(done) {
+    it('rectifyOnSave for Create should call rectifyChanges instead of rectifyAllChanges', function(done) {
       var calls = mockTargetModelRectify();
       var newData = [{name: 'Janie', surname: 'Doe'}];
       async.waterfall([
