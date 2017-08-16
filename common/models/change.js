@@ -87,25 +87,35 @@ module.exports = function(Change) {
 
     callback = callback || utils.createPromiseCallback();
 
-    var tasks = modelIds.map(function(id) {
-      return function(cb) {
-        Change.findOrCreateChange(modelName, id, function(err, change) {
-          if (err) return next(err);
-          change.rectify(next);
-        });
+    Change.findOrCreateChanges(modelName, modelIds, function(err, changes) {
+      if (err) return next(err);
+      var tasks = changes.map(function(change) {
+        return function(cb) {
+          change.rectify(function(err) {
+            next(err, cb);
+          });
 
-        function next(err) {
-          if (err) {
-            err.modelName = modelName;
-            err.modelId = id;
-            errors.push(err);
-          }
-          cb();
+        };
+      });
+      function next(err, cb) {
+        if (err) {
+          err.modelName = modelName;
+          err.modelId = id;
+          errors.push(err);
         }
-      };
+        cb();
+      }
+      var model = this.getModelCtor();
+
+      var throttleAmount = model.settings.throttleUpdates || 0;
+      if (throttleAmount > 0) {
+        async.parallelLimit(tasks, throttleAmount, handleErrors);
+      } else {
+        async.parallel(tasks, handleErrors);
+      }
     });
 
-    async.parallel(tasks, function(err) {
+    function handleErrors(err) {
       if (err) return callback(err);
       if (errors.length) {
         var desc = errors
@@ -120,7 +130,8 @@ module.exports = function(Change) {
         return callback(err);
       }
       callback();
-    });
+    }
+
     return callback.promise;
   };
 
@@ -140,6 +151,69 @@ module.exports = function(Change) {
    * Find or create a change for the given model.
    *
    * @param  {String}   modelName
+   * @param  {Array}   modelIds
+   * @callback  {Function} callback
+   * @param {Error} err
+   * @param {Change} change
+   * @end
+   */
+
+  Change.findOrCreateChanges = function(modelName, modelIds, callback) {
+    assert(this.registry.findModel(modelName), modelName + ' does not exist');
+    callback = callback || utils.createPromiseCallback();
+    var modelIdLookupMap = {};
+    var ids = modelIds.map(function(modelId) {
+      var id = this.idForModel(modelName, modelId);
+      modelIdLookupMap[id] = modelId;
+    });
+    var Change = this;
+
+    Change.find({where: {id: {inq: ids}}}, changeCallback);
+
+    function changeCallback(err, changes) {
+      if (err) return callback(err);
+
+      var changeMap = {};
+      var newChanges = [];
+      var existingChanges = [];
+
+      changes.forEach(function(change) {
+        changeMap[change.id] = change;
+      });
+
+      ids.forEach(function(id) {
+        var change = changeMap[id];
+        if (change) {
+          existingChanges.push(change);
+        } else {
+          var ch = new Change({
+            id: id,
+            modelName: modelName,
+            modelId: modelIdLookupMap[id]
+          });
+
+          ch.debug('creating change');
+          newChanges.push(ch);
+        }
+      });
+      if (newChanges.length > 0) {
+
+        Change.create(newChanges, function(createErr, updatedChanges) {
+          if (createErr) return callback(createErr);
+          callback(null, updatedChanges.concat(existingChanges));
+        });
+      } else {
+        callback(null, existingChanges);
+      }
+    }
+
+    return callback.promise;
+  };
+
+  /**
+   * Find or create a change for the given model.
+   *
+   * @param  {String}   modelName
    * @param  {String}   modelId
    * @callback  {Function} callback
    * @param {Error} err
@@ -149,25 +223,9 @@ module.exports = function(Change) {
 
   Change.findOrCreateChange = function(modelName, modelId, callback) {
     assert(this.registry.findModel(modelName), modelName + ' does not exist');
-    callback = callback || utils.createPromiseCallback();
-    var id = this.idForModel(modelName, modelId);
     var Change = this;
 
-    this.findById(id, function(err, change) {
-      if (err) return callback(err);
-      if (change) {
-        callback(null, change);
-      } else {
-        var ch = new Change({
-          id: id,
-          modelName: modelName,
-          modelId: modelId
-        });
-        ch.debug('creating change');
-        Change.updateOrCreate(ch, callback);
-      }
-    });
-    return callback.promise;
+    return Change.findOrCreateChanges(modelName, [modelId], callback);
   };
 
   /**
