@@ -90,22 +90,23 @@ module.exports = function(Change) {
     Change.findOrCreateChanges(modelName, modelIds, function(err, changes) {
       if (err) return next(err);
       var tasks = changes.map(function(change) {
+        var modelId = change.modelId;
         return function(cb) {
           change.rectify(function(err) {
-            next(err, cb);
+            next(err, modelId, cb);
           });
 
         };
       });
-      function next(err, cb) {
+      function next(err, modelId, cb) {
         if (err) {
           err.modelName = modelName;
-          err.modelId = id;
+          err.modelId = modelId;
           errors.push(err);
         }
         cb();
       }
-      var model = this.getModelCtor();
+      var model = Change.prototype.getModelCtor();
 
       var throttleAmount = model.settings.throttleUpdates || 0;
       if (throttleAmount > 0) {
@@ -160,13 +161,13 @@ module.exports = function(Change) {
 
   Change.findOrCreateChanges = function(modelName, modelIds, callback) {
     assert(this.registry.findModel(modelName), modelName + ' does not exist');
+    var Change = this;
     callback = callback || utils.createPromiseCallback();
     var modelIdLookupMap = {};
     var ids = modelIds.map(function(modelId) {
-      var id = this.idForModel(modelName, modelId);
+      var id = Change.idForModel(modelName, modelId);
       modelIdLookupMap[id] = modelId;
     });
-    var Change = this;
 
     Change.find({where: {id: {inq: ids}}}, changeCallback);
 
