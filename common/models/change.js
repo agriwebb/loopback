@@ -12,6 +12,7 @@ var g = require('strong-globalize')();
 var PersistedModel = require('../../lib/loopback').PersistedModel;
 var loopback = require('../../lib/loopback');
 var utils = require('../../lib/utils');
+var chunk = require('../../lib/chunk');
 var crypto = require('crypto');
 var CJSON = {stringify: require('canonical-json')};
 var async = require('async');
@@ -71,6 +72,56 @@ module.exports = function(Change) {
   };
   Change.setup();
 
+  Change.rectifyModelIds = function (modelName, modelIds, callback) {
+    var Change = this;
+    var errors = [];
+    Change.findOrCreateChanges(modelName, modelIds, function (err, changes) {
+      if (err) return callback(err);
+
+      var model = Change.prototype.getModelCtor();
+      model.find({where: {id: {inq: modelIds}}}, function (err, instances) {
+
+        var instanceMap = {};
+        instances.forEach(function (instance) {
+          instanceMap[instance.id] = instance;
+        });
+
+        var tasks = changes.map(function (change) {
+          var modelId = change.modelId;
+          var instance = instanceMap[modelId];
+          var ctx = {};
+          if (instance) {
+            ctx.instance = instance;
+          }
+
+          return function (cb) {
+            change.rectify(ctx, function (err) {
+              if (err) {
+                err.modelName = modelName;
+                err.modelId = modelId;
+                errors.push(err);
+              }
+              cb();
+            });
+          };
+        });
+
+        var throttleAmount = model.settings.throttleUpdates || 0;
+        if (throttleAmount > 0) {
+          async.parallelLimit(tasks, throttleAmount, finalCallback);
+        } else {
+          async.parallel(tasks, finalCallback);
+        }
+      });
+
+      function finalCallback(err) {
+        if (err) return callback(err);
+        // err is unexpected
+        // errors is the log of change fails
+        callback(null, errors);
+      }
+    });
+  };
   /**
    * Track the recent change of the given modelIds.
    *
@@ -83,54 +134,16 @@ module.exports = function(Change) {
 
   Change.rectifyModelChanges = function(modelName, modelIds, callback) {
     var Change = this;
-    var errors = [];
 
     callback = callback || utils.createPromiseCallback();
 
-    Change.findOrCreateChanges(modelName, modelIds, function(err, changes) {
-      if (err) return callback(err);
+    chunk.processInChunks(modelIds, function(smallArray, chunkCallback) {
+      Change.rectifyModelIds(modelName, modelIds, chunkCallback);
+    }, handleErrors);
 
-      var model = Change.prototype.getModelCtor();
-      model.find({where: {id: {inq: modelIds}}}, function(err, instances) {
 
-        var instanceMap = {};
-        instances.forEach(function(instance) {
-          instanceMap[instance.id] = instance;
-        });
 
-        var tasks = changes.map(function(change) {
-          var modelId = change.modelId;
-          var instance = instanceMap[modelId];
-          var ctx = {};
-          if (instance) {
-            ctx.instance = instance;
-          }
-
-          return function(cb) {
-            change.rectify(ctx, function (err) {
-              next(err,modelId, cb);
-            });
-          };
-        });
-
-        var throttleAmount = model.settings.throttleUpdates || 0;
-        if (throttleAmount > 0) {
-          async.parallelLimit(tasks, throttleAmount, handleErrors);
-        } else {
-          async.parallel(tasks, handleErrors);
-        }
-      });
-      function next(err, modelId, cb) {
-        if (err) {
-          err.modelName = modelName;
-          err.modelId = modelId;
-          errors.push(err);
-        }
-        cb();
-      }
-    });
-
-    function handleErrors(err) {
+    function handleErrors(err, errors) {
       if (err) return callback(err);
       if (errors.length) {
         var desc = errors
