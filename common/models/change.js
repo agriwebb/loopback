@@ -75,6 +75,7 @@ module.exports = function(Change) {
   Change.rectifyModelIds = function (modelName, modelIds, callback) {
     var Change = this;
     var errors = [];
+    console.log('processing chunksize: ', modelName, modelIds.length);
     Change.findOrCreateChanges(modelName, modelIds, function (err, changes) {
       if (err) return callback(err);
 
@@ -134,7 +135,7 @@ module.exports = function(Change) {
     var model = Change.prototype.getModelCtor();
 
     chunk.processInChunks(modelIds, model.getChunkSize(), function(smallArray, chunkCallback) {
-      Change.rectifyModelIds(modelName, modelIds, chunkCallback);
+      Change.rectifyModelIds(modelName, smallArray, chunkCallback);
     }, handleErrors);
 
 
