@@ -106,12 +106,7 @@ module.exports = function(Change) {
           };
         });
 
-        var throttleAmount = model.settings.throttleUpdates || 0;
-        if (throttleAmount > 0) {
-          async.parallelLimit(tasks, throttleAmount, finalCallback);
-        } else {
-          async.parallel(tasks, finalCallback);
-        }
+        async.parallel(tasks, finalCallback);
       });
 
       function finalCallback(err) {
@@ -136,8 +131,9 @@ module.exports = function(Change) {
     var Change = this;
 
     callback = callback || utils.createPromiseCallback();
+    var model = Change.prototype.getModelCtor();
 
-    chunk.processInChunks(modelIds, function(smallArray, chunkCallback) {
+    chunk.processInChunks(modelIds, model.getChunkSize(), function(smallArray, chunkCallback) {
       Change.rectifyModelIds(modelName, modelIds, chunkCallback);
     }, handleErrors);
 
