@@ -89,7 +89,7 @@
     "karma-phantomjs-launcher": "^1.0.0",
     "karma-script-launcher": "^1.0.0",
     "loopback-boot": "^2.7.0",
-    "loopback-datasource-juggler": "^2.19.1",
+    "loopback-datasource-juggler": "git+ssh://github.com/agriwebb/loopback-datasource-juggler.git#agriwebb-merge",
     "loopback-testing": "^1.4.0",
     "mocha": "^3.0.0",
     "nyc": "^10.1.2",
