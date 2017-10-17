@@ -48,7 +48,7 @@
     "express": "^4.12.2",
     "inflection": "^1.6.0",
     "isemail": "^1.2.0",
-    "loopback-connector-remote": "^1.0.3",
+    "loopback-connector-remote": "git+https://github.com/agriwebb/loopback-connector-remote.git#agriwebb-merge",
     "loopback-context": "^1.0.0",
     "loopback-phase": "^1.2.0",
     "nodemailer": "^2.5.0",
