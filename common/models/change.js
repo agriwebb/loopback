@@ -388,7 +388,8 @@ module.exports = function(Change) {
 
     function prepareInst(inst) {
       var currentTenant = change.tenant;
-      change.tenant = getTenant(model, inst);
+      // Only update the tenant if there is an instance
+      change.tenant = inst ? getTenant(model, inst) : change.tenant;
 
       change.currentRevision(inst, function(err, rev) {
         if (err) {
