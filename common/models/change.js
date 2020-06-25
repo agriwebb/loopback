@@ -79,7 +79,7 @@ module.exports = function(Change) {
       if (err) return callback(err);
 
       var model = Change.prototype.getModelCtor();
-      model.find({where: {id: {inq: modelIds}}}, function (err, instances) {
+      model.find({where: {id: {inq: modelIds}}}, {rectify: true}, function (err, instances) {
 
         var instanceMap = {};
         instances.forEach(function (instance) {
@@ -136,8 +136,6 @@ module.exports = function(Change) {
     chunk.processInChunks(modelIds, model.getChunkSize(), function(smallArray, chunkCallback) {
       Change.rectifyModelIds(modelName, smallArray, chunkCallback);
     }, handleErrors);
-
-
 
     function handleErrors(err, errors) {
       if (err) return callback(err);
@@ -376,7 +374,7 @@ module.exports = function(Change) {
     if (ctx && ctx.instance) {
       prepareInst(ctx.instance);
     } else {
-      model.findById(id, function(err, inst) {
+      model.findById(id, {rectify: true}, function(err, inst) {
         if (err) {
           return cb(err);
         }
@@ -486,7 +484,7 @@ module.exports = function(Change) {
     } else {
       var model = this.getModelCtor();
       var id = this.getModelId();
-      model.findById(id, function(err, inst) {
+      model.findById(id, {rectify: true}, function(err, inst) {
         if (err) return cb(err);
         if (inst) {
           cb(null, Change.revisionForInst(inst));
@@ -780,7 +778,7 @@ module.exports = function(Change) {
   Change.prototype.getModel = function(callback) {
     var Model = this.constructor.settings.trackModel;
     var id = this.getModelId();
-    Model.findById(id, callback);
+    Model.findById(id, {rectify: true}, callback);
   };
 
   /**
@@ -826,7 +824,7 @@ module.exports = function(Change) {
     ], done);
 
     function getSourceModel(cb) {
-      SourceModel.findById(conflict.modelId, function(err, model) {
+      SourceModel.findById(conflict.modelId, {rectify: true}, function(err, model) {
         if (err) return cb(err);
         source = model;
         cb();
@@ -834,7 +832,7 @@ module.exports = function(Change) {
     }
 
     function getTargetModel(cb) {
-      TargetModel.findById(conflict.modelId, function(err, model) {
+      TargetModel.findById(conflict.modelId, {rectify: true}, function(err, model) {
         if (err) return cb(err);
         target = model;
         cb();
