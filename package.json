@@ -51,7 +51,7 @@
     "express": "^4.16.2",
     "inflection": "^1.6.0",
     "isemail": "^1.2.0",
-    "loopback-connector-remote": "git+https://github.com/agriwebb/loopback-connector-remote.git#ca6a3c331c99cf2bd8e39462abfd547439be1d19",
+    "loopback-connector-remote": "git+ssh://git@github.com:agriwebb/loopback-connector-remote.git#7d5aa906b945c5c52ec273072c89e6aba1986c7f",
     "loopback-context": "^1.0.0",
     "loopback-phase": "^1.2.0",
     "nodemailer": "^2.5.0",
@@ -59,12 +59,12 @@
     "serve-favicon": "^2.2.0",
     "stable": "^0.1.5",
     "strong-globalize": "^2.6.2",
-    "strong-remoting": "git+https://github.com/agriwebb/strong-remoting.git#d2df18e64028982b0f908c733cc6cde98c7e52ab",
+    "strong-remoting": "git+ssh://git@github.com:agriwebb/strong-remoting.git#d2df18e64028982b0f908c733cc6cde98c7e52ab",
     "uid2": "0.0.3",
     "underscore.string": "^3.0.3"
   },
   "peerDependencies": {
-    "loopback-datasource-juggler": "git+ssh://github.com/agriwebb/loopback-datasource-juggler.git#4dd8c8db7d13e86c7a878aa7ad23fc16598950de"
+    "loopback-datasource-juggler": "git+ssh://git@github.com:agriwebb/loopback-datasource-juggler.git#4dd8c8db7d13e86c7a878aa7ad23fc16598950de"
   },
   "devDependencies": {
     "bluebird": "^3.4.1",
@@ -92,7 +92,7 @@
     "karma-phantomjs-launcher": "^1.0.0",
     "karma-script-launcher": "^1.0.0",
     "loopback-boot": "^2.7.0",
-    "loopback-datasource-juggler": "git+ssh://github.com/agriwebb/loopback-datasource-juggler.git#4dd8c8db7d13e86c7a878aa7ad23fc16598950de",
+    "loopback-datasource-juggler": "git+ssh://git@github.com:agriwebb/loopback-datasource-juggler.git#4dd8c8db7d13e86c7a878aa7ad23fc16598950de",
     "loopback-testing": "^1.4.0",
     "mocha": "^3.0.0",
     "nyc": "^10.1.2",
