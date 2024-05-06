@@ -51,7 +51,7 @@
     "express": "^4.16.2",
     "inflection": "^1.6.0",
     "isemail": "^1.2.0",
-    "loopback-connector-remote": "git+ssh://git@github.com:agriwebb/loopback-connector-remote.git#7d5aa906b945c5c52ec273072c89e6aba1986c7f",
+    "loopback-connector-remote": "git+ssh://git@github.com:agriwebb/loopback-connector-remote.git#815f96048e0580238faf42838bb375046a305748",
     "loopback-context": "^1.0.0",
     "loopback-phase": "^1.2.0",
     "nodemailer": "^2.5.0",
