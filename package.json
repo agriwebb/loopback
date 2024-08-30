@@ -51,7 +51,7 @@
     "express": "^4.16.2",
     "inflection": "^1.6.0",
     "isemail": "^1.2.0",
-    "loopback-connector-remote": "git+ssh://git@github.com:agriwebb/loopback-connector-remote.git#815f96048e0580238faf42838bb375046a305748",
+    "loopback-connector-remote": "git+ssh://git@github.com:agriwebb/loopback-connector-remote.git#f0ccd93f808177db316e2e45e53531882ae0ea6f",
     "loopback-context": "^1.0.0",
     "loopback-phase": "^1.2.0",
     "nodemailer": "^2.5.0",
@@ -59,7 +59,7 @@
     "serve-favicon": "^2.2.0",
     "stable": "^0.1.5",
     "strong-globalize": "^2.6.2",
-    "strong-remoting": "git+ssh://git@github.com:agriwebb/strong-remoting.git#d2df18e64028982b0f908c733cc6cde98c7e52ab",
+    "strong-remoting": "git+ssh://git@github.com:agriwebb/strong-remoting.git#29cbe2aa68348277c79df36faeab9fcd3305fe94",
     "uid2": "0.0.3",
     "underscore.string": "^3.0.3"
   },
